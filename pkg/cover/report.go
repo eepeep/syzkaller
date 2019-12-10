@@ -27,6 +27,7 @@ type ReportGenerator struct {
 	srcDir   string
 	buildDir string
 	objDir   string
+	OS       string
 	symbols  []symbol
 	pcs      map[uint64][]symbolizer.Frame
 }
@@ -47,6 +48,7 @@ func MakeReportGenerator(target *targets.Target, kernelObject, srcDir, buildDir 
 		srcDir:   srcDir,
 		buildDir: buildDir,
 		objDir:   filepath.Dir(kernelObject),
+		OS:       target.OS,
 		pcs:      make(map[uint64][]symbolizer.Frame),
 	}
 	errc := make(chan error)
@@ -168,6 +170,14 @@ func (rg *ReportGenerator) generate(w io.Writer, progs []Prog, files map[string]
 	for fname, file := range files {
 		remain := ""
 		switch {
+		case rg.OS == "fuchsia":
+			// Fuchsia uses a path relative to the output directory for the kernel.
+			// Example: ../../out/x64.zircon/../../zircon/kernel/dev/pcie/pcie_root.cc
+			// We concatenate te build dir with foo/bar to clean up the first ../../
+			// And we end up having $buildir/out/x64.zircon/../../path-to-file
+			// which gets cleaned to $buildir/path-to-file
+			fname = filepath.Clean(filepath.Join(rg.buildDir, "foo/bar", fname))
+			remain = strings.TrimPrefix(fname, rg.buildDir)
 		case strings.HasPrefix(fname, rg.objDir):
 			// Assume the file was built there.
 			remain = filepath.Clean(strings.TrimPrefix(fname, rg.objDir))
@@ -223,7 +233,7 @@ func (rg *ReportGenerator) generate(w io.Writer, progs []Prog, files map[string]
 		}
 		lines, err := parseFile(fname)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse file %q: %v", fname, err)
 		}
 		var buf bytes.Buffer
 		for i, ln := range lines {
@@ -378,6 +388,7 @@ func objdumpAndSymbolize(target *targets.Target, obj string) ([]symbolizer.Frame
 		cmd.Process.Kill()
 		cmd.Wait()
 	}()
+
 	s := bufio.NewScanner(stdout)
 	callInsns, traceFuncs := archCallInsn(target)
 	var pcs []uint64
@@ -491,8 +502,17 @@ func PreviousInstructionPC(target *targets.Target, pc uint64) uint64 {
 	}
 }
 
+// archCallInsn returns a pair of lists of byte-arrays which are useful to
+// detect calls to the coverage instrumentation in objdump disassembly.
+// The first list contains string representations of call instructions in that
+// architecture.
+// The second one is a list of instrumentation function names (e.g.
+// <__sanitizer_cov_trace_pc>).
+// Callers could check each line in an objdump disassembly and look for all
+// call instructions that contain the second string.
 func archCallInsn(target *targets.Target) ([][]byte, [][]byte) {
-	callName := [][]byte{[]byte(" <__sanitizer_cov_trace_pc>")}
+	callName := [][]byte{[]byte(" <__sanitizer_cov_trace_pc>"),
+		[]byte(" <__sanitizer_cov_trace_pc_guard>")}
 	switch target.Arch {
 	case "amd64":
 		// ffffffff8100206a:       callq  ffffffff815cc1d0 <__sanitizer_cov_trace_pc>

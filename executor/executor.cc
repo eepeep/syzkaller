@@ -931,6 +931,7 @@ void copyout_call_results(thread_t* th)
 	}
 }
 
+#if !GOOS_fuchsia
 void write_call_output(thread_t* th, bool finished)
 {
 	uint32 reserrno = 999;
@@ -999,6 +1000,7 @@ void write_call_output(thread_t* th, bool finished)
 		      th->call_index, th->call_num, reserrno, finished, blocked);
 #endif
 }
+#endif
 
 void write_extra_output()
 {
