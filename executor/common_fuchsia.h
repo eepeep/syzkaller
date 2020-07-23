@@ -200,7 +200,13 @@ long syz_mmap(size_t addr, size_t size)
 		debug("zx_vmo_create failed: %s (%d)\n", zx_status_get_string(status), status);
 		return status;
 	}
-
+	//status = zx_vmo_replace_as_executable(vmo, ZX_HANDLE_INVALID, &vmo);
+	//if (status != ZX_OK) {
+		//debug("zx_vmo_replace_as_executable failed with: %d\n", status);
+		//// Don't need to zx_handle_close(vmo) because
+		//// zx_vmo_replace_as_executable already invalidates it.
+		//return status;
+	//}
 	uintptr_t mapped_addr;
 	status = zx_vmar_map(root, ZX_VM_FLAG_SPECIFIC_OVERWRITE | ZX_VM_FLAG_PERM_READ | ZX_VM_FLAG_PERM_WRITE,
 			     addr - info.base, vmo, 0, size,

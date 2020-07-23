@@ -212,7 +212,7 @@ func checkRevisions(args *checkArgs) error {
 	if args.target.Arch != vers[1] {
 		return fmt.Errorf("mismatching target/executor arches: %v vs %v", args.target.Arch, vers[1])
 	}
-	if prog.GitRevision != vers[3] {
+	if prog.GitRevisionBase != vers[3] {
 		return fmt.Errorf("mismatching fuzzer/executor git revisions: %v vs %v",
 			prog.GitRevision, vers[3])
 	}
