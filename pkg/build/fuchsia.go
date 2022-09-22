@@ -4,6 +4,7 @@
 package build
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -39,8 +40,10 @@ func (fu fuchsia) build(params Params) (ImageDetails, error) {
 	}
 	arch := sysTarget.KernelHeaderArch
 	product := fmt.Sprintf("%s.%s", "core", arch)
+	buildDir := filepath.Join(params.KernelDir, "out", arch)
+
 	if _, err := runSandboxed(time.Hour, params.KernelDir,
-		"scripts/fx", "--dir", "out/"+arch,
+		"scripts/fx", "--dir", buildDir,
 		"set", product,
 		"--args", fmt.Sprintf(`syzkaller_dir="%s"`, syzDir),
 		"--with-base", "//bundles:tools",
@@ -61,18 +64,25 @@ func (fu fuchsia) build(params Params) (ImageDetails, error) {
 	}
 
 	sshZBI := filepath.Join(params.OutputDir, "initrd")
-	kernelZBI := filepath.Join(params.KernelDir, "out", arch, "fuchsia.zbi")
+	kernelZBI, err := getImagePath(buildDir, "zircon-a", "zbi")
+	if err != nil {
+		return ImageDetails{}, err
+	}
 	authorizedKeys := fmt.Sprintf("data/ssh/authorized_keys=%s", sshKeyPub)
 
-	if _, err := osutil.RunCmd(time.Minute, params.KernelDir, "out/"+arch+"/host_x64/zbi",
+	zbiTool := filepath.Join(buildDir, "host_x64", "zbi")
+	if _, err := osutil.RunCmd(time.Minute, params.KernelDir, zbiTool,
 		"-o", sshZBI, kernelZBI, "--entry", authorizedKeys); err != nil {
 		return ImageDetails{}, err
 	}
 
 	// Copy and extend the fvm.
-	fvmTool := filepath.Join("out", arch, "host_x64", "fvm")
+	fvmTool := filepath.Join(buildDir, "host_x64", "fvm")
 	fvmDst := filepath.Join(params.OutputDir, "image")
-	fvmSrc := filepath.Join(params.KernelDir, "out", arch, "obj", "build", "images", "fuchsia", "fuchsia", "fvm.blk")
+	fvmSrc, err := getImagePath(buildDir, "storage-full", "blk")
+	if err != nil {
+		return ImageDetails{}, err
+	}
 	if err := osutil.CopyFile(fvmSrc, fvmDst); err != nil {
 		return ImageDetails{}, err
 	}
@@ -80,13 +90,17 @@ func (fu fuchsia) build(params Params) (ImageDetails, error) {
 		return ImageDetails{}, err
 	}
 
+	kernelSrc, err := getImagePath(buildDir, "qemu-kernel", "kernel")
+	if err != nil {
+		return ImageDetails{}, err
+	}
+	zirconSrc := filepath.Join(buildDir, "kernel_"+arch+"-kasan", "zircon.elf")
 	for src, dst := range map[string]string{
-		"out/" + arch + "/kernel_" + arch + "-kasan/zircon.elf": "obj/zircon.elf",
-		"out/" + arch + "/multiboot.bin":                        "kernel",
+		zirconSrc: "obj/zircon.elf",
+		kernelSrc: "kernel",
 	} {
-		fullSrc := filepath.Join(params.KernelDir, filepath.FromSlash(src))
 		fullDst := filepath.Join(params.OutputDir, filepath.FromSlash(dst))
-		if err := osutil.CopyFile(fullSrc, fullDst); err != nil {
+		if err := osutil.CopyFile(src, fullDst); err != nil {
 			return ImageDetails{}, fmt.Errorf("failed to copy %v: %v", src, err)
 		}
 	}
@@ -123,4 +137,33 @@ func genSSHKeys(dir string) (privKey, pubKey string, err error) {
 		return "", "", err
 	}
 	return privKey, pubKey, nil
+}
+
+// Relevant subset of Fuchsia build_api metadata stored in images.json
+type imageMetadata struct {
+	Name string
+	Path string
+	Type string
+}
+
+// Look up the path for the image with the given name and type
+func getImagePath(buildDir, name, imageType string) (string, error) {
+	jsonPath := filepath.Join(buildDir, "images.json")
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %v: %v", jsonPath, err)
+	}
+
+	var images []imageMetadata
+	if err := json.Unmarshal(data, &images); err != nil {
+		return "", fmt.Errorf("failed to unmarshal %v: %v", jsonPath, err)
+	}
+
+	for _, metadata := range images {
+		if metadata.Name == name && metadata.Type == imageType {
+			return filepath.Join(buildDir, metadata.Path), nil
+		}
+	}
+
+	return "", fmt.Errorf("no image found for name=%s, type=%s", name, imageType)
 }
