@@ -4,6 +4,8 @@
 # See https://cs.opensource.google/fuchsia/fuchsia/+/main:zircon/vdso/guest.fidl
 
 include <zircon/syscalls.h>
+include <zircon/syscalls/hypervisor.h>
+include <zircon/syscalls/port.h>
 
 resource zx_guest[zx_handle]
 

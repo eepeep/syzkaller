@@ -4,6 +4,7 @@
 # See https://cs.opensource.google/fuchsia/fuchsia/+/main:zircon/vdso/debuglog.fidl
 
 include <zircon/syscalls.h>
+include <zircon/syscalls/log.h>
 
 resource zx_log[zx_handle]
 

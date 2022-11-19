@@ -13,6 +13,9 @@ resource koid[int64]: 0
 
 zx_object_get_child(handle zx_handle, koid koid, rights flags[zx_rights], out ptr[out, zx_handle])
 
+# TODO: Re-add ZX_INFO_CPU_STATS, ZX_INFO_KMEMSTATS, ZX_INFO_KMEM_STATS_EXTENDED
+# once we have access to the root resource
+
 zx_object_get_info$ZX_INFO_HANDLE_VALID(handle zx_handle, topic const[ZX_INFO_HANDLE_VALID], buffer const[0], buffer_size const[0], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_HANDLE_BASIC(handle zx_handle, topic const[ZX_INFO_HANDLE_BASIC], buffer ptr[out, zx_info_handle_basic], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_HANDLE_TABLE(handle zx_handle, topic const[ZX_INFO_HANDLE_TABLE], buffer ptr[out, zx_info_handle_extended], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
@@ -24,7 +27,6 @@ zx_object_get_info$ZX_INFO_PROCESS_THREADS(handle zx_process, topic const[ZX_INF
 zx_object_get_info$ZX_INFO_THREAD(handle zx_thread, topic const[ZX_INFO_THREAD], buffer ptr[out, zx_info_thread], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_THREAD_EXCEPTION_REPORT(handle zx_thread, topic const[ZX_INFO_THREAD_EXCEPTION_REPORT], buffer ptr[out, zx_exception_report], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_THREAD_STATS(handle zx_thread, topic const[ZX_INFO_THREAD_STATS], buffer ptr[out, zx_info_thread_stats], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
-zx_object_get_info$ZX_INFO_CPU_STATS(root_resource zx_root_resource, topic const[ZX_INFO_CPU_STATS], buffer ptr[out, array[zx_info_cpu_stats]], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_VMAR(handle zx_vmar, topic const[ZX_INFO_VMAR], buffer ptr[out, zx_info_vmar], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_VMO(handle zx_vmar, topic const[ZX_INFO_VMO], buffer ptr[out, zx_info_vmo], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_SOCKET(handle zx_socket, topic const[ZX_INFO_SOCKET], buffer ptr[out, zx_info_socket], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
@@ -33,8 +35,6 @@ zx_object_get_info$ZX_INFO_JOB_PROCESSES(handle zx_job, topic const[ZX_INFO_JOB_
 zx_object_get_info$ZX_INFO_TASK_STATS(handle zx_process, topic const[ZX_INFO_TASK_STATS], buffer ptr[out, zx_info_task_stats], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_PROCESS_MAPS(handle zx_process, topic const[ZX_INFO_PROCESS_MAPS], buffer ptr[out, array[zx_info_maps]], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_PROCESS_VMOS(handle zx_process, topic const[ZX_INFO_PROCESS_VMOS], buffer ptr[out, array[zx_info_vmo]], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
-zx_object_get_info$ZX_INFO_KMEM_STATS(root_resource zx_root_resource, topic const[ZX_INFO_KMEM_STATS], buffer ptr[out, zx_info_kmem_stats], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
-zx_object_get_info$ZX_INFO_KMEM_STATS_EXTENDED(root_resource zx_root_resource, topic const[ZX_INFO_KMEM_STATS_EXTENDED], buffer ptr[out, zx_info_kmem_stats_extended], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_TIMER(handle zx_timer, topic const[ZX_INFO_TIMER], buffer ptr[out, zx_info_timer], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_GUEST_STATS(handle zx_handle, topic const[ZX_INFO_GUEST_STATS], buffer ptr[out, zx_info_handle_basic], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
 zx_object_get_info$ZX_INFO_TASK_RUNTIME(handle zx_handle, topic const[ZX_INFO_TASK_RUNTIME], buffer ptr[out, zx_info_handle_basic], buffer_size bytesize[buffer], actual ptr[out, intptr], avail ptr[out, intptr])
@@ -133,25 +133,6 @@ zx_info_thread_stats {
 	total_runtime	int64
 }
 
-zx_info_cpu_stats {
-	cpu_number		int32
-	flags			int32
-	idle_time		int64
-	reschedules		int64
-	context_switches	int64
-	irq_preempts		int64
-	preempts		int64
-	yields			int64
-	ints			int64
-	timer_ints		int64
-	timers			int64
-	page_faults		int64
-	exceptions		int64
-	syscalls		int64
-	reschedule_ipis		int64
-	generic_ipis		int64
-}
-
 zx_info_vmar {
 	base	intptr
 	len	intptr
@@ -201,37 +182,6 @@ zx_info_maps_mapping {
 	mmu_flags	int32
 	vmo_koid	koid
 	committed_pages	intptr
-}
-
-zx_info_kmem_stats {
-	total_bytes		int64
-	free_bytes		int64
-	wired_bytes		int64
-
-	total_heap_bytes	int64
-	free_heap_bytes		int64
-	vmo_bytes		int64
-	mmu_overhead_bytes	int64
-	ipc_bytes		int64
-	other_bytes		int64
-}
-
-zx_info_kmem_stats_extended {
-	total_bytes			int64
-	free_bytes			int64
-	wired_bytes			int64
-	total_heap_bytes		int64
-	free_heap_bytes			int64
-	vmo_bytes			int64
-# extended part
-	vmo_pager_total_bytes		int64
-	vmo_pager_newest_bytes		int64
-	vmo_pager_oldest_bytes		int64
-	vmo_discardable_locked_bytes	int64
-	vmo_discardable_unlocked_bytes	int64
-	mmu_overhead_bytes		int64
-	ipc_bytes			int64
-	other_bytes			int64
 }
 
 zx_info_timer {

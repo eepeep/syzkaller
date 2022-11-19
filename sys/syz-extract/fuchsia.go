@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/google/syzkaller/pkg/compiler"
-	"github.com/google/syzkaller/sys/fuchsia/layout"
 )
 
 type fuchsia struct{}
@@ -27,11 +26,7 @@ func (*fuchsia) processFile(arch *Arch, info *compiler.ConstInfo) (map[string]ui
 	cc := filepath.Join(srcDir, "prebuilt/third_party/clang/linux-x64/bin/clang")
 	args := []string{
 		"-fmessage-length=0",
-		"-I", filepath.Join(outDir, "zircon_toolchain/obj/zircon/public/sysroot/sysroot/include"),
-		"-I", filepath.Join(outDir, "fidling/gen/zircon/vdso/zx"),
-	}
-	for _, fidlLib := range layout.AllFidlLibraries {
-		args = append(args, "-I", filepath.Join(outDir, fidlLib.PathToCompiledDir()))
+		"-I", filepath.Join(outDir, "sdk/exported/core/arch/"+arch.target.KernelHeaderArch+"/sysroot/include"),
 	}
 	for _, incdir := range info.Incdirs {
 		args = append(args, "-I", filepath.Join(srcDir, incdir))

@@ -231,11 +231,6 @@ runner:  descriptions
 # `extract` extracts const files from various kernel sources, and may only
 # re-generate parts of files.
 extract: bin/syz-extract
-ifeq ($(TARGETOS),fuchsia)
-	$(MAKE) generate_fidl TARGETARCH=amd64
-	$(MAKE) generate_fidl TARGETARCH=arm64
-else
-endif
 	bin/syz-extract -build -os=$(TARGETOS) -sourcedir=$(SOURCEDIR) $(FILES)
 
 bin/syz-extract:
@@ -251,13 +246,6 @@ generate:
 generate_go: format_cpp
 	$(GO) generate ./pkg/csource ./executor ./pkg/ifuzz ./pkg/build
 	$(GO) generate ./vm/proxyapp
-
-generate_fidl:
-ifeq ($(TARGETOS),fuchsia)
-	$(HOSTGO) generate ./sys/fuchsia
-	$(MAKE) format_sys
-else
-endif
 
 generate_trace2syz:
 	(cd tools/syz-trace2syz/parser; ragel -Z -G2 -o lex.go straceLex.rl)

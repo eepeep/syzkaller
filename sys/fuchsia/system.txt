@@ -3,7 +3,9 @@
 
 # See https://cs.opensource.google/fuchsia/fuchsia/+/main:zircon/vdso/system.fidl
 
+include <zircon/features.h>
 include <zircon/syscalls.h>
+include <zircon/syscalls/system.h>
 include <zircon/types.h>
 
 zx_system_get_dcache_line_size(size ptr[out, int32])

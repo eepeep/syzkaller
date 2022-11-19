@@ -4,6 +4,7 @@
 # See: https://cs.opensource.google/fuchsia/fuchsia/+/main:zircon/vdso/iommu.fidl
 
 include <zircon/syscalls.h>
+include <zircon/syscalls/iommu.h>
 
 resource zx_iommu[zx_handle]
 

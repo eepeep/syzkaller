@@ -22,10 +22,6 @@
 #include <zircon/status.h>
 #include <zircon/syscalls.h>
 
-#if SYZ_EXECUTOR || __NR_get_root_resource
-#include <lib/ddk/driver.h>
-#endif
-
 #if SYZ_EXECUTOR || SYZ_HANDLE_SEGV
 #include <pthread.h>
 #include <setjmp.h>

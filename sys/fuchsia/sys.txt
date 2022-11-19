@@ -4,13 +4,8 @@
 # See https://fuchsia.googlesource.com/fuchsia/+/master/zircon/docs/syscalls.md
 
 include <zircon/syscalls.h>
-include <ddk/driver.h>
 
 syz_execute_func(text ptr[in, text[target]])
-
-# Provided by sysroot (include/ddk/driver.h)
-resource zx_root_resource[zx_handle]
-get_root_resource() zx_root_resource
 
 # Used by syzkaller to allocate memory for syscall arguments.
 syz_mmap(addr vma, len len[addr])

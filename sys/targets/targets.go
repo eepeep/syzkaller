@@ -600,19 +600,11 @@ func fuchsiaCFlags(arch, clangArch string) []string {
 	return []string{
 		"-Wno-deprecated",
 		"-target", clangArch + "-fuchsia",
-		"-ldriver",
 		"-lfdio",
 		"-lzircon",
-		"--sysroot", out + "/zircon_toolchain/obj/zircon/public/sysroot/sysroot",
-		"-I", sourceDirVar + "/sdk/lib/fdio/include",
-		"-I", sourceDirVar + "/zircon/system/ulib/fidl/include",
-		"-I", sourceDirVar + "/src/lib/ddk/include",
-		"-I", out + "/fidling/gen/sdk/fidl/fuchsia.device",
-		"-I", out + "/fidling/gen/sdk/fidl/fuchsia.device.manager",
-		"-I", out + "/fidling/gen/sdk/fidl/fuchsia.hardware.nand",
-		"-I", out + "/fidling/gen/sdk/fidl/fuchsia.hardware.power.statecontrol",
-		"-I", out + "/fidling/gen/sdk/fidl/fuchsia.hardware.usb.peripheral",
-		"-I", out + "/fidling/gen/zircon/vdso/zx",
+		"--sysroot", out + "/sdk/exported/core/arch/" + arch + "/sysroot",
+		"-I", out + "/sdk/exported/core/pkg/fdio/include",
+		"-I", out + "/sdk/exported/core/pkg/fidl/include",
 		"-L", out + "/" + arch + "-shared",
 	}
 }

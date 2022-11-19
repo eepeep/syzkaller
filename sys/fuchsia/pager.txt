@@ -19,5 +19,10 @@ zx_pager_query_dirty_ranges(pager zx_pager, pager_vmo zx_vmo, offset int64, leng
 zx_pager_query_vmo_stats(pager zx_pager, pager_vmo zx_vmo, options int32, buffer ptr[out, void], buffer_size len[buffer]) (disabled)
 
 pager_create_opt = 0
-pager_create_vmo_opt = 0, ZX_VMO_RESIZABLE, ZX_VMO_TRAP_DIRTY, ZX_VMO_DISCARDABLE
-pager_op_range_opt = ZX_PAGER_OP_DIRTY, ZX_PAGER_OP_FAIL, ZX_PAGER_OP_WRITEBACK_BEGIN, ZX_PAGER_OP_WRITEBACK_END
+
+# TODO: re-add ZX_VMO_TRAP_DIRTY once we support vdso-next
+pager_create_vmo_opt = 0, ZX_VMO_RESIZABLE, ZX_VMO_DISCARDABLE
+
+# TODO: re-add ZX_PAGER_OP_DIRTY, ZX_PAGER_OP_WRITEBACK_BEGIN,
+# ZX_PAGER_OP_WRITEBACK_END once we support vdso-next
+pager_op_range_opt = ZX_PAGER_OP_FAIL

@@ -29,9 +29,9 @@ Usage:
 
 Prints this help message.
 
-  setup.sh build syzkaller-directory fuchsia-directory
+  setup.sh build syzkaller-directory fuchsia-directory [arch]
 
-Builds Syzkaller and Fuchsia for x64.
+Builds Syzkaller and Fuchsia for \`arch\` (x64/arm64).
 
   setup.sh [-d] run syzkaller-directory fuchsia-directory
 
@@ -69,19 +69,25 @@ preflight() {
   fi
 }
 
-build() {
-  preflight "$syzkaller" "$fuchsia"
-
+configure_build() {
   cd "$fuchsia"
-  fx --dir "out/x64" set core.x64 \
+  outdir="out/$arch"
+  fx --dir $outdir set core.$arch \
     --with-base "//bundles/tools" \
     --with-base "//src/testing/fuzzing/syzkaller" \
     --args=syzkaller_dir="\"$syzkaller\"" \
     --variant=kasan
+}
+
+build() {
+  preflight "$syzkaller" "$fuchsia"
+
+  configure_build
+  cd "$fuchsia"
   fx build
 
   cd "$syzkaller"
-  make TARGETOS=fuchsia TARGETARCH=amd64 SOURCEDIR="$fuchsia"
+  make TARGETOS=fuchsia TARGETARCH=$syzkaller_arch SOURCEDIR="$fuchsia"
 }
 
 run() {
@@ -90,27 +96,27 @@ run() {
   cd "$fuchsia"
 
   # Look up needed deps from build_api metadata
-  fvm_path=$(jq -r '.[] | select(.name == "storage-full" and .type == "blk").path' out/x64/images.json)
-  zbi_path=$(jq -r '.[] | select(.name == "zircon-a" and .type == "zbi").path' out/x64/images.json)
-  multiboot_path=$(jq -r '.[] | select(.name == "qemu-kernel" and .type == "kernel").path' out/x64/images.json)
+  fvm_path=$(jq -r '.[] | select(.name == "storage-full" and .type == "blk").path' $outdir/images.json)
+  zbi_path=$(jq -r '.[] | select(.name == "zircon-a" and .type == "zbi").path' $outdir/images.json)
+  multiboot_path=$(jq -r '.[] | select(.name == "qemu-kernel" and .type == "kernel").path' $outdir/images.json)
 
   # Make a separate directory for copies of files we need to modify
-  syz_deps_path=$fuchsia/out/x64/syzdeps
+  syz_deps_path=$fuchsia/$outdir/syzdeps
   mkdir -p $syz_deps_path
 
-  ./out/x64/host_x64/zbi -o $syz_deps_path/fuchsia-ssh.zbi out/x64/$zbi_path \
+  ./$outdir/host_x64/zbi -o $syz_deps_path/fuchsia-ssh.zbi $outdir/$zbi_path \
     --entry "data/ssh/authorized_keys=${fuchsia}/.ssh/authorized_keys"
-  cp out/x64/$fvm_path \
+  cp $outdir/$fvm_path \
     $syz_deps_path/fvm-extended.blk
-  ./out/x64/host_x64/fvm \
+  ./$outdir/host_x64/fvm \
     $syz_deps_path/fvm-extended.blk extend --length 3G
 
   echo "{
   \"name\": \"fuchsia\",
-  \"target\": \"fuchsia/amd64\",
+  \"target\": \"fuchsia/$syzkaller_arch\",
   \"http\": \":12345\",
   \"workdir\": \"$workdir\",
-  \"kernel_obj\": \"$fuchsia/out/x64/kernel_x64-kasan/obj/zircon/kernel\",
+  \"kernel_obj\": \"$fuchsia/$outdir/kernel_$arch-kasan/obj/zircon/kernel\",
   \"syzkaller\": \"$syzkaller\",
   \"image\": \"$syz_deps_path/fvm-extended.blk\",
   \"sshkey\": \"$fuchsia/.ssh/pkey\",
@@ -122,7 +128,7 @@ run() {
     \"count\": 10,
     \"cpu\": 4,
     \"mem\": 2048,
-    \"kernel\": \"$fuchsia/out/x64/$multiboot_path\",
+    \"kernel\": \"$fuchsia/$outdir/$multiboot_path\",
     \"initrd\": \"$syz_deps_path/fuchsia-ssh.zbi\"
   }
 }" > "$workdir/fx-syz-manager-config.json"
@@ -136,16 +142,31 @@ run() {
   bin/syz-manager -config "$workdir/fx-syz-manager-config.json" "$debug"
 }
 
-update_syscall_definitions() {
-  # TODO
-  echo "NOTE: This command does not currently work."
-  exit
+build_sdk() {
+  configure_build
+  cd "$fuchsia"
+  fx build sdk
 
+  # The SDK is assembled with a bunch of symlinks to absolute paths that don't
+  # resolve inside the Docker container.
+  find $outdir/sdk/exported/core -type l -exec sh -c 'cp --remove-destination $(readlink -n $0) $0' {} \;
+
+}
+
+update_syscall_definitions() {
   preflight "$syzkaller" "$fuchsia"
 
+  # syz-extract needs a sysroot available, but if the definitions are currently
+  # out-of-date we may not be able to run a full build without running into an
+  # error, so only build a subset here (the SDK seems reasonable).
+  arch=x64
+  build_sdk
+  arch=arm64
+  build_sdk
+
   cd "$syzkaller"
-  make extract TARGETOS=fuchsia SOURCEDIR="$fuchsia"
-  make generate
+  tools/syz-env make extract TARGETOS=fuchsia SOURCEDIR="$fuchsia"
+  tools/syz-env make generate
 }
 
 main() {
@@ -158,13 +179,25 @@ main() {
   done
   shift $((OPTIND - 1))
 
-  if [[ $# != 3 ]]; then
+  if [[ $# < 3 || $# > 4 ]]; then
     usage
   fi
 
   command="$1"
-  syzkaller="$2"
-  fuchsia="$3"
+  syzkaller="$(realpath $2)"
+  fuchsia="$(realpath $3)"
+
+  arch="${4:-x64}"
+  if [[ ! ("$arch" == "x64" || "$arch" == "arm64") ]]; then
+    die "Invalid arch: must be arm64 or x64."
+  fi
+
+  # Syzkaller uses a different name for x64
+  syzkaller_arch=$arch
+  if [[ $syzkaller_arch == "x64" ]]; then
+    syzkaller_arch="amd64"
+  fi
+
   workdir="$syzkaller/workdir.fuchsia"
   mkdir -p "$workdir"
 
