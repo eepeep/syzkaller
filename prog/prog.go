@@ -87,6 +87,7 @@ func (arg *ConstArg) Value() (uint64, uint64) {
 	case *ConstType:
 		return arg.Val, 0
 	case *FlagsType:
+		return 100, 0
 		return arg.Val, 0
 	case *LenType:
 		return arg.Val, 0

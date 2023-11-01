@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/syzkaller/pkg/config"
@@ -18,6 +19,11 @@ import (
 	"github.com/google/syzkaller/pkg/report"
 	"github.com/google/syzkaller/vm/vmimpl"
 )
+
+// TODO: somehow use osutil
+func killPgroup(cmd *exec.Cmd) {
+	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+}
 
 func init() {
 	var _ vmimpl.Infoer = (*instance)(nil)
@@ -153,11 +159,11 @@ func (inst *instance) boot() error {
 func (inst *instance) Close() {
 	inst.ffx("emu", "stop", inst.name)
 	if inst.fuchsiaLogs != nil {
-		inst.fuchsiaLogs.Process.Kill()
+		killPgroup(inst.fuchsiaLogs)
 		inst.fuchsiaLogs.Wait()
 	}
 	if inst.adb != nil {
-		inst.adb.Process.Kill()
+		killPgroup(inst.adb)
 		inst.adb.Wait()
 	}
 	if inst.merger != nil {
@@ -189,7 +195,13 @@ func (inst *instance) startFuchsiaLogs() error {
 	cmd.Stderr = inst.wpipe
 	inst.merger.Add("fuchsia", inst.rpipe)
 	inst.fuchsiaLogs = cmd
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	inst.wpipe.Close()
+	inst.wpipe = nil
+	inst.rpipe = nil
+	return nil
 }
 
 func (inst *instance) startAdbServerAndConnection(timeout time.Duration) error {
@@ -237,7 +249,7 @@ func (inst *instance) createAdbScript() error {
 		`#!/bin/bash
 		adb_port=$1
 		fuzzer_args=${@:2}
-		adb -s 127.0.0.1:$adb_port shell "cd %s; ./syz-executor $fuzzer_args"`, targetDir)
+		exec adb -s 127.0.0.1:$adb_port shell "cd %s; ./syz-executor $fuzzer_args"`, targetDir)
 	return os.WriteFile(inst.executor, []byte(adbScript), 0777)
 }
 
@@ -327,10 +339,10 @@ func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command strin
 		case <-stop:
 			signal(vmimpl.ErrTimeout)
 		case <-inst.diagnose:
-			cmd.Process.Kill()
+			killPgroup(cmd)
 			goto retry
 		case err := <-inst.merger.Err:
-			cmd.Process.Kill()
+			killPgroup(cmd)
 			if cmdErr := cmd.Wait(); cmdErr == nil {
 				// If the command exited successfully, we got EOF error from merger.
 				// But in this case no error has happened and the EOF is expected.
@@ -339,7 +351,7 @@ func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command strin
 			signal(err)
 			return
 		}
-		cmd.Process.Kill()
+		killPgroup(cmd)
 		cmd.Wait()
 	}()
 	return inst.merger.Output, errc, nil

@@ -206,6 +206,8 @@ func (cfg *Config) initTimeouts() {
 		// but a smaller value should be enough to finish at least some syscalls.
 		// Note: the name check is a hack.
 		slowdown = 10
+	case cfg.Type == "starnix":
+		slowdown = 3
 	}
 	// Note: we could also consider heavy debug tools (KASAN/KMSAN/KCSAN/KMEMLEAK) if necessary.
 	cfg.Timeouts = cfg.SysTarget.Timeouts(slowdown)
