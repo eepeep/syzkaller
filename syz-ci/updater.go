@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	syzkallerRebuildPeriod = 12 * time.Hour
-	buildRetryPeriod       = 10 * time.Minute // used for both syzkaller and kernel
+	syzkallerRebuildPeriod = 10 * time.Minute
+	buildRetryPeriod       = 5 * time.Minute // used for both syzkaller and kernel
 )
 
 // SyzUpdater handles everything related to syzkaller updates.
