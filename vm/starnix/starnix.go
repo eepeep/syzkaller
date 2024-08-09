@@ -58,10 +58,12 @@ type instance struct {
 	rpipe            io.ReadCloser
 	wpipe            io.WriteCloser
 	fuchsiaLogs      *exec.Cmd
+	sshBridge        *exec.Cmd
 	sshPubKey        string
 	sshPrivKey       string
 	merger           *vmimpl.OutputMerger
 	diagnose         chan bool
+	timeouts         targets.Timeouts
 }
 
 const targetDir = "/tmp"
@@ -79,6 +81,7 @@ func ctor(env *vmimpl.Env) (vmimpl.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ffx isolation dir: %w", err)
 	}
+	log.Logf(1, "initialized vm pool with ffx dir: %v", ffxDir)
 
 	pool := &Pool{
 		count:  cfg.Count,
@@ -102,6 +105,7 @@ func (pool *Pool) Create(workdir string, index int) (vmimpl.Instance, error) {
 		cfg:              pool.cfg,
 		debug:            pool.env.Debug,
 		workdir:          workdir,
+		timeouts:         pool.env.Timeouts,
 	}
 	closeInst := inst
 	defer func() {
@@ -191,14 +195,18 @@ func (inst *instance) Close() error {
 		inst.fuchsiaLogs.Process.Kill()
 		inst.fuchsiaLogs.Wait()
 	}
-	if inst.merger != nil {
-		inst.merger.Wait()
+	if inst.sshBridge != nil {
+		inst.sshBridge.Process.Kill()
+		inst.sshBridge.Wait()
 	}
 	if inst.rpipe != nil {
 		inst.rpipe.Close()
 	}
 	if inst.wpipe != nil {
 		inst.wpipe.Close()
+	}
+	if inst.merger != nil {
+		inst.merger.Wait()
 	}
 	return nil
 }
@@ -303,6 +311,9 @@ func (inst *instance) connect() error {
 	if err = cmd.Start(); err != nil {
 		return err
 	}
+
+	inst.sshBridge = cmd
+
 	time.Sleep(5 * time.Second)
 	if inst.debug {
 		log.Logf(0, "instance %s: forwarded port from starnix container", inst.name)
@@ -401,38 +412,11 @@ func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command strin
 		return nil, nil, err
 	}
 	wpipe.Close()
-	errc := make(chan error, 1)
-	signal := func(err error) {
-		select {
-		case errc <- err:
-		default:
-		}
-	}
-
-	go func() {
-	retry:
-		select {
-		case <-time.After(timeout):
-			signal(vmimpl.ErrTimeout)
-		case <-stop:
-			signal(vmimpl.ErrTimeout)
-		case <-inst.diagnose:
-			cmd.Process.Kill()
-			goto retry
-		case err := <-inst.merger.Err:
-			cmd.Process.Kill()
-			if cmdErr := cmd.Wait(); cmdErr == nil {
-				// If the command exited successfully, we got EOF error from merger.
-				// But in this case no error has happened and the EOF is expected.
-				err = nil
-			}
-			signal(err)
-			return
-		}
-		cmd.Process.Kill()
-		cmd.Wait()
-	}()
-	return inst.merger.Output, errc, nil
+	return vmimpl.Multiplex(cmd, inst.merger, timeout, vmimpl.MultiplexConfig{
+		Stop:  stop,
+		Debug: inst.debug,
+		Scale: inst.timeouts.Scale,
+	})
 }
 
 func (inst *instance) Info() ([]byte, error) {
