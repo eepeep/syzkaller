@@ -325,7 +325,7 @@ func (inst *instance) connect() error {
 func (inst *instance) ffxCommand(args ...string) *exec.Cmd {
 	cmd := osutil.Command(inst.ffxBinary, args...)
 	cmd.Dir = inst.fuchsiaDirectory
-	cmd.Env = append(cmd.Env, "FFX_ISOLATE_DIR="+inst.ffxDir, "FUCHSIA_ANALYTICS_DISABLED=1")
+	cmd.Env = append(cmd.Environ(), "FFX_ISOLATE_DIR="+inst.ffxDir, "FUCHSIA_ANALYTICS_DISABLED=1")
 	return cmd
 }
 
