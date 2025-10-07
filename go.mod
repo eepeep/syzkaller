@@ -9,14 +9,13 @@ require (
 	cloud.google.com/go/compute/metadata v0.8.0
 	cloud.google.com/go/logging v1.13.0
 	cloud.google.com/go/profiler v0.4.3
-	cloud.google.com/go/pubsub v1.49.0
 	cloud.google.com/go/secretmanager v1.15.0
 	cloud.google.com/go/spanner v1.82.0
 	cloud.google.com/go/storage v1.55.0
 	github.com/VividCortex/gohistogram v1.0.0
 	github.com/argoproj/argo-workflows/v3 v3.7.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
-	github.com/google/flatbuffers v25.1.24+incompatible
+	github.com/google/flatbuffers v25.9.23+incompatible
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
